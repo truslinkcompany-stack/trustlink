@@ -3,6 +3,8 @@ import QRCode from "qrcode";
 import { admin, RecordRow, UUID_RE } from "@/lib/supabase";
 import { checkToken } from "@/lib/token";
 import { siteUrl } from "@/lib/site";
+import { dict, fmt } from "@/lib/dict";
+import { getLang } from "@/lib/lang";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false } };
@@ -15,9 +17,11 @@ export default async function Result({
   searchParams: Promise<{ t?: string }>;
 }) {
   const { id } = await params;
-  const { t } = await searchParams;
-  if (!UUID_RE.test(id) || !checkToken(id, t)) notFound();
+  const { t: token } = await searchParams;
+  if (!UUID_RE.test(id) || !checkToken(id, token)) notFound();
 
+  const lang = await getLang();
+  const t = dict[lang].result;
   const { data: rec } = await admin().from("records").select("*").eq("id", id).maybeSingle<RecordRow>();
   if (!rec) notFound();
 
@@ -25,19 +29,17 @@ export default async function Result({
   const qr = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 440, errorCorrectionLevel: "M" });
 
   return (
-    <>
-      <h1>Сертификат создан</h1>
-      <div className="card" style={{ textAlign: "center" }}>
-        <div className="tag">Номер сертификата</div>
-        <div style={{ fontSize: 28, fontWeight: 700 }}>{rec.cert_no}</div>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="qr" src={qr} alt={`QR-код для проверки сертификата ${rec.cert_no}`} />
-        <p className="tag">Отсканируйте код, чтобы открыть страницу проверки</p>
-        <a className="btn" href={`/api/records/${rec.id}/pdf?t=${t}`}>Скачать PDF</a>
-        <a className="btn ghost" href={`/verify/${rec.id}`}>Открыть страницу проверки</a>
-      </div>
-      <p className="note">Сохраните PDF сразу: ссылка на скачивание доступна только вам. Страница проверки доступна по QR-коду всем.</p>
-      <a href="/">Сделать ещё одно фото</a>
-    </>
+    <div className="cert center">
+      <h1 style={{ fontSize: 28, marginTop: 0 }}>{t.title}</h1>
+      <div className="tag">{t.certNo}</div>
+      <div style={{ fontSize: 28, fontWeight: 700 }}>{rec.cert_no}</div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img className="qr" src={qr} alt={fmt(t.qrAlt, { id: rec.cert_no })} />
+      <p className="tag">{t.scanHint}</p>
+      <a className="btn" href={`/api/records/${rec.id}/pdf?t=${token}&lang=${lang}`}>{t.download}</a>
+      <a className="btn ghost" href={`/verify/${rec.id}`}>{t.openVerify}</a>
+      <p className="note" style={{ textAlign: "left" }}>{t.saveNote}</p>
+      <a href="/">{t.another}</a>
+    </div>
   );
 }

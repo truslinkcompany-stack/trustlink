@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { fmt, dict } from "@/lib/dict";
 
+type T = typeof dict.ru.capture;
 type Geo = { lat: number; lng: number; accuracy: number } | null;
 type Step = "intro" | "camera" | "form" | "sending";
 
@@ -9,7 +11,7 @@ const MAX_SIDE = 1920;
 const TARGET_BYTES = 3.5 * 1024 * 1024; // запас до лимита запроса Vercel (~4,5 МБ)
 const GOOD_ACCURACY_M = 100; // KPI: на улице не хуже 100 м
 
-async function toJpeg(video: HTMLVideoElement): Promise<Blob> {
+async function toJpeg(video: HTMLVideoElement, failMsg: string): Promise<Blob> {
   const w = video.videoWidth, h = video.videoHeight;
   const k = Math.min(1, MAX_SIDE / Math.max(w, h));
   const canvas = document.createElement("canvas");
@@ -21,16 +23,17 @@ async function toJpeg(video: HTMLVideoElement): Promise<Blob> {
     if (blob && blob.size <= TARGET_BYTES) return blob;
   }
   const last: Blob | null = await new Promise((r) => canvas.toBlob(r, "image/jpeg", 0.35));
-  if (!last) throw new Error("Не удалось подготовить снимок");
+  if (!last) throw new Error(failMsg);
   return last;
 }
 
-export default function Capture() {
+export default function Capture({ t }: { t: T }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const watchRef = useRef<number | null>(null);
   const bestGeo = useRef<Geo>(null);
   const [step, setStep] = useState<Step>("intro");
+  const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [blob, setBlob] = useState<Blob | null>(null);
   const [preview, setPreview] = useState("");
@@ -41,7 +44,7 @@ export default function Capture() {
   const [desc, setDesc] = useState("");
 
   const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current?.getTracks().forEach((tr) => tr.stop());
     streamRef.current = null;
   };
   const stopGeo = () => {
@@ -51,7 +54,17 @@ export default function Capture() {
   useEffect(() => () => { stopCamera(); stopGeo(); }, []);
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  /** Следим за положением и держим самый точный из полученных вариантов. */
+  // Подключаем поток к <video> ПОСЛЕ того, как элемент появился на странице
+  useEffect(() => {
+    if (step !== "camera") return;
+    const v = videoRef.current, s = streamRef.current;
+    if (!v || !s) return;
+    v.muted = true;
+    v.setAttribute("playsinline", "true");
+    v.srcObject = s;
+    v.play().catch(() => {});
+  }, [step]);
+
   function startGeo() {
     stopGeo();
     bestGeo.current = null;
@@ -74,39 +87,36 @@ export default function Capture() {
 
   async function openCamera() {
     setError("");
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setError("Браузер не поддерживает камеру. Откройте страницу в Safari (iPhone) или Chrome (Android) по ссылке https.");
-      return;
-    }
+    setReady(false);
+    if (!navigator.mediaDevices?.getUserMedia) { setError(t.errNoApi); return; }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1440 } },
-        audio: false,
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false }); // запасной вариант
+      }
       streamRef.current = stream;
       setStep("camera");
-      startGeo(); // координаты ловим, пока человек наводит камеру
-      requestAnimationFrame(() => {
-        const v = videoRef.current;
-        if (v) { v.srcObject = stream; v.play().catch(() => {}); }
-      });
+      startGeo();
     } catch {
-      setError("Нет доступа к камере. Разрешите камеру в настройках браузера и попробуйте снова.");
+      setError(t.errNoAccess);
     }
   }
 
   async function shoot() {
     const v = videoRef.current;
-    if (!v || !v.videoWidth) { setError("Камера ещё не готова. Подождите секунду."); return; }
+    if (!v || !v.videoWidth) { setError(t.notReady); return; }
     try {
-      const b = await toJpeg(v);
+      const b = await toJpeg(v, t.prepFail);
       setBlob(b);
       setPreview(URL.createObjectURL(b));
       stopCamera();
       stopGeo();
+      setError("");
       setStep("form");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Не удалось сделать снимок");
+      setError(e instanceof Error ? e.message : t.prepFail);
     }
   }
 
@@ -123,7 +133,6 @@ export default function Capture() {
     setStep("sending");
     const fd = new FormData();
     fd.append("photo", blob, "photo.jpg");
-    // необязательные поля: пустые не отправляем
     if (project.trim()) fd.append("project_name", project.trim());
     if (author.trim()) fd.append("author_name", author.trim());
     if (desc.trim()) fd.append("description", desc.trim());
@@ -137,71 +146,71 @@ export default function Capture() {
     try {
       const res = await fetch("/api/records", { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Ошибка отправки");
+      if (!res.ok) throw new Error(data.error || t.sendErr);
       window.location.href = `/result/${data.id}?t=${data.token}`;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Нет связи с сервером. Проверьте интернет и повторите отправку.");
+      setError(err instanceof TypeError ? t.netErr : err instanceof Error ? err.message : t.netErr);
       setStep("form");
     }
   }
 
-  const lowAccuracy = geo !== null && geo.accuracy > GOOD_ACCURACY_M;
+  const low = geo !== null && geo.accuracy > GOOD_ACCURACY_M;
+  const dot = geoState === "denied" && !geo ? "bad" : geo ? (low ? "low" : "ok") : "";
   const geoText =
-    geoState === "wait" ? "Определяем координаты…" :
-    geoState === "denied" && !geo ? "Координаты не получены: запись будет создана без них. Разрешите геолокацию для сайта в настройках браузера." :
-    geo ? `Координаты получены, точность ±${Math.round(geo.accuracy)} м` : "";
+    geoState === "wait" && !geo ? t.geoWait :
+    geoState === "denied" && !geo ? t.geoDenied :
+    geo ? fmt(t.geoOk, { n: Math.round(geo.accuracy) }) : "";
 
   return (
     <div>
       {step === "intro" && (
-        <div className="card">
-          <p style={{ marginTop: 0 }}>
-            Для сертификата сервис сохранит <strong>фото, время, координаты</strong> и то, что вы впишете в необязательные поля. Это нужно, чтобы проверяющий мог убедиться, что снимок настоящий.
-          </p>
-          <p className="note">Не снимайте людей крупным планом без их согласия: лицо на фото — персональные данные.</p>
-          <button className="btn" onClick={openCamera}>Открыть камеру</button>
+        <div>
+          <p style={{ marginTop: 0 }}>{t.intro}</p>
+          <p className="note">{t.consent}</p>
+          <button className="btn" onClick={openCamera}>{t.open}</button>
         </div>
       )}
 
       {step === "camera" && (
         <div>
           <div className="viewfinder">
-            <video ref={videoRef} playsInline muted autoPlay />
+            <video ref={videoRef} playsInline muted autoPlay onLoadedMetadata={() => setReady(true)} onPlaying={() => setReady(true)} />
+            <div className="reticle" />
+            {!ready && <div className="vf-msg">{t.starting}</div>}
           </div>
-          <p className="status-line" aria-live="polite">{geoText}</p>
-          {lowAccuracy && (
-            <p className="note">Точность низкая (±{Math.round(geo!.accuracy)} м). Выйдите на открытое место и подождите несколько секунд: координаты уточняются.</p>
-          )}
-          <button className="btn" onClick={shoot}>Сделать снимок</button>
+          <div className="gps" aria-live="polite"><span className={`dot ${dot}`} />{geoText}</div>
+          {low && <p className="note">{fmt(t.lowCam, { n: Math.round(geo!.accuracy) })}</p>}
+          <div className="shutter-row">
+            <button className="shutter" onClick={shoot} disabled={!ready} aria-label={t.shutter} title={t.shutter} />
+          </div>
         </div>
       )}
 
       {(step === "form" || step === "sending") && (
-        <form onSubmit={send} className="card">
+        <form onSubmit={send}>
           <div className="viewfinder" style={{ aspectRatio: "4 / 3" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={preview} alt="Снимок для сертификата" />
+            <img src={preview} alt={t.previewAlt} />
           </div>
-          <p className="status-line">
-            {geo ? `Координаты: ${geo.lat.toFixed(4)}, ${geo.lng.toFixed(4)} (±${Math.round(geo.accuracy)} м)` : "Координаты не получены"}
-          </p>
-          {lowAccuracy && <p className="note">Точность ±{Math.round(geo!.accuracy)} м хуже {GOOD_ACCURACY_M} м. Лучше переснять на открытом месте.</p>}
+          <div className="gps">
+            <span className={`dot ${dot}`} />
+            {geo ? fmt(t.coords, { lat: geo.lat.toFixed(4), lng: geo.lng.toFixed(4), n: Math.round(geo.accuracy) }) : t.coordsNone}
+          </div>
+          {low && <p className="note">{fmt(t.lowForm, { n: Math.round(geo!.accuracy), m: GOOD_ACCURACY_M })}</p>}
 
-          <p className="tag" style={{ marginTop: 14 }}>Поля ниже необязательны. Что не заполнено, в сертификат не попадёт.</p>
-          <label htmlFor="project">Проект <span className="tag">(название и организация)</span></label>
+          <p className="tag" style={{ marginTop: 14 }}>{t.optHint}</p>
+          <label htmlFor="project">{t.fProject} <span className="tag">{t.fProjectHint}</span></label>
           <input id="project" type="text" maxLength={160} value={project} onChange={(e) => setProject(e.target.value)} autoComplete="off" />
-          <label htmlFor="author">Имя автора</label>
+          <label htmlFor="author">{t.fAuthor}</label>
           <input id="author" type="text" maxLength={80} value={author} onChange={(e) => setAuthor(e.target.value)} autoComplete="off" />
-          <label htmlFor="desc">Выполнено <span className="tag">(комментарий)</span></label>
+          <label htmlFor="desc">{t.fDone} <span className="tag">{t.fDoneHint}</span></label>
           <textarea id="desc" maxLength={300} value={desc} onChange={(e) => setDesc(e.target.value)} />
           <div className="count">{desc.length}/300</div>
-          <p className="tag">Эти поля указаны вами, в сертификате они помечаются как заполненные пользователем.</p>
+          <p className="tag">{t.userFilled}</p>
 
           {error && <div className="err" role="alert">{error}</div>}
-          <button className="btn" type="submit" disabled={step === "sending"}>
-            {step === "sending" ? "Отправляем…" : "Отправить и получить сертификат"}
-          </button>
-          <button className="btn ghost" type="button" onClick={retake} disabled={step === "sending"}>Переснять</button>
+          <button className="btn" type="submit" disabled={step === "sending"}>{step === "sending" ? t.sending : t.submit}</button>
+          <button className="btn ghost" type="button" onClick={retake} disabled={step === "sending"}>{t.retake}</button>
         </form>
       )}
 

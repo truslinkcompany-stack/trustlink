@@ -1,18 +1,26 @@
 import Link from "next/link";
 import { allPosts } from "@/lib/news";
+import { dict } from "@/lib/dict";
+import { getLang } from "@/lib/lang";
 
-export const metadata = { title: "Новости — TrustLink" };
+export async function generateMetadata() {
+  return { title: dict[await getLang()].news.metaTitle };
+}
 
-export default function News() {
+export default async function News() {
+  const lang = await getLang();
+  const t = dict[lang].news;
   const posts = allPosts();
   return (
     <>
-      <h1>Новости</h1>
-      {posts.length === 0 && <p className="lead">Пока новостей нет. Добавьте файл .md в папку content/news.</p>}
+      <h1>{t.title}</h1>
+      {lang === "en" && <p className="tag">{t.ruOnly}</p>}
+      {posts.length === 0 && <p className="lead">{t.none}</p>}
       {posts.map((p) => (
         <div className="post" key={p.slug}>
           <span className="tag">{p.date}</span>
           <Link href={`/news/${p.slug}`}>{p.title}</Link>
+          {p.summary && <p style={{ margin: "4px 0 0", color: "var(--muted)" }}>{p.summary}</p>}
         </div>
       ))}
     </>

@@ -5,7 +5,8 @@ import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
 import sharp from "sharp";
 import type { RecordRow } from "./supabase";
-import { fmtCoords, fmtDateTime } from "./format";
+import { deviceLabel, fmtCoords, fmtDateTime } from "./format";
+import { dict, type Lang } from "./dict";
 
 const INK = rgb(0.08, 0.13, 0.17);
 const MUTED = rgb(0.4, 0.45, 0.5);
@@ -37,7 +38,8 @@ function wrap(text: string, font: PDFFont, size: number, max: number): string[] 
 
 type Row = { label: string; lines: string[]; strong?: boolean; green?: boolean };
 
-export async function buildCertificate(rec: RecordRow, photo: Buffer, verifyUrl: string): Promise<Uint8Array> {
+export async function buildCertificate(rec: RecordRow, photo: Buffer, verifyUrl: string, lang: Lang = "ru"): Promise<Uint8Array> {
+  const T = dict[lang].pdf;
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
   const fontDir = path.join(process.cwd(), "public", "fonts");
@@ -55,23 +57,23 @@ export async function buildCertificate(rec: RecordRow, photo: Buffer, verifyUrl:
   let y = PH - M;
   page.drawImage(logo, { x: M, y: y - lh, width: lw, height: lh });
   y -= lh + 22;
-  page.drawText("ПОДТВЕРЖДЕНИЕ ВЫПОЛНЕНИЯ", { x: M, y: y - 16, size: 22, font: bold, color: rgb(0.06, 0.15, 0.28) });
+  page.drawText(T.title, { x: M, y: y - 16, size: 22, font: bold, color: rgb(0.06, 0.15, 0.28) });
   y -= 36;
-  page.drawText("Фотоотчёт, зафиксированный сервисом ДоброСлед", { x: M, y: y - 8, size: 11, font: regular, color: MUTED });
+  page.drawText(T.subtitle, { x: M, y: y - 8, size: 11, font: regular, color: MUTED });
   y -= 24;
 
   // Строки данных. Необязательные поля пользователя попадают сюда только если заполнены.
   const rows: Row[] = [];
-  if (rec.place_name) rows.push({ label: "Место", lines: wrap(rec.place_name, regular, 10.5, VW) });
-  const coords = fmtCoords(rec.lat, rec.lng, rec.accuracy_m);
-  rows.push({ label: "Координаты", lines: wrap(coords ?? "не получены", regular, 10.5, VW) });
-  rows.push({ label: "Дата и время", lines: wrap(fmtDateTime(rec.created_at, rec.client_tz), regular, 10.5, VW) });
-  if (rec.device) rows.push({ label: "Устройство", lines: wrap(rec.device, regular, 10.5, VW) });
-  rows.push({ label: "Способ съёмки", lines: ["Камера страницы сервиса"] });
-  rows.push({ label: "Целостность файла", lines: ["Не изменялся с момента получения"], green: true });
-  if (rec.project_name) rows.push({ label: "Проект", lines: wrap(rec.project_name, regular, 10.5, VW) });
-  if (rec.author_name) rows.push({ label: "Автор", lines: wrap(rec.author_name, regular, 10.5, VW) });
-  if (rec.description) rows.push({ label: "Выполнено", lines: wrap(rec.description, regular, 10.5, VW) });
+  if (rec.place_name) rows.push({ label: T.place, lines: wrap(rec.place_name, regular, 10.5, VW) });
+  const coords = fmtCoords(rec.lat, rec.lng, rec.accuracy_m, lang);
+  rows.push({ label: T.coords, lines: wrap(coords ?? T.coordsNone, regular, 10.5, VW) });
+  rows.push({ label: T.datetime, lines: wrap(fmtDateTime(rec.created_at, rec.client_tz, lang), regular, 10.5, VW) });
+  if (rec.device) rows.push({ label: T.device, lines: wrap(deviceLabel(rec.device, dict[lang].device), regular, 10.5, VW) });
+  rows.push({ label: T.method, lines: [T.methodVal] });
+  rows.push({ label: T.integrity, lines: [T.integrityVal], green: true });
+  if (rec.project_name) rows.push({ label: T.project, lines: wrap(rec.project_name, regular, 10.5, VW) });
+  if (rec.author_name) rows.push({ label: T.author, lines: wrap(rec.author_name, regular, 10.5, VW) });
+  if (rec.description) rows.push({ label: T.done, lines: wrap(rec.description, regular, 10.5, VW) });
 
   const rowH = (r: Row) => Math.max(26, r.lines.length * 14 + 12);
   const rowsTotal = rows.reduce((s, r) => s + rowH(r) + 4, 0);
@@ -107,26 +109,21 @@ export async function buildCertificate(rec: RecordRow, photo: Buffer, verifyUrl:
   page.drawImage(qr, { x: M + W - qrSize, y: y - qrSize, width: qrSize, height: qrSize });
 
   page.drawRectangle({ x: M, y: y - 30, width: W - qrSize - 14, height: 30, color: PILL });
-  page.drawText("ID записи", { x: M + 12, y: y - 19, size: 9.5, font: regular, color: MUTED });
+  page.drawText(T.id, { x: M + 12, y: y - 19, size: 9.5, font: regular, color: MUTED });
   page.drawText(rec.cert_no, { x: VX, y: y - 19, size: 12, font: bold, color: INK });
   page.drawRectangle({ x: M, y: y - 62, width: 150, height: 26, color: GREEN_BG });
-  page.drawText("ПОДТВЕРЖДЕНО", { x: M + 16, y: y - 54, size: 11, font: bold, color: GREEN });
-  page.drawText("Проверьте подлинность записи по QR-коду", { x: M, y: y - 78, size: 9, font: regular, color: MUTED });
+  page.drawText(T.status, { x: M + 16, y: y - 54, size: 11, font: bold, color: GREEN });
+  page.drawText(T.scan, { x: M, y: y - 78, size: 9, font: regular, color: MUTED });
   y -= qrSize + 10;
 
   // Хеш и ссылка
-  page.drawText("SHA-256 файла: " + rec.sha256.slice(0, 32), { x: M, y: y - 8, size: 7.5, font: regular, color: MUTED });
-  page.drawText(rec.sha256.slice(32), { x: M + 68, y: y - 18, size: 7.5, font: regular, color: MUTED });
+  page.drawText(T.sha + rec.sha256.slice(0, 32), { x: M, y: y - 8, size: 7.5, font: regular, color: MUTED });
+  page.drawText(rec.sha256.slice(32), { x: M + regular.widthOfTextAtSize(T.sha, 7.5), y: y - 18, size: 7.5, font: regular, color: MUTED });
   page.drawText(verifyUrl, { x: M, y: y - 30, size: 7.5, font: regular, color: GREEN });
   y -= 42;
 
   // Честные ограничения (заявка на грант: «disclose known limitations»)
-  const warn =
-    "Сертификат подтверждает, что файл получен сервисом в указанное время и не менялся с этого момента. " +
-    "Координаты предоставлены браузером устройства и могут быть подменены. " +
-    "Поля «Проект», «Автор» и «Выполнено» заполнены пользователем и сервисом не проверяются. " +
-    "Сервис не определяет, создано ли изображение нейросетью.";
-  const wl = wrap(warn, regular, 7.5, W - 16);
+  const wl = wrap(T.warn, regular, 7.5, W - 16);
   const bh = wl.length * 10 + 10;
   page.drawRectangle({ x: M, y: y - bh, width: W, height: bh, color: rgb(0.97, 0.97, 0.98), borderColor: rgb(0.86, 0.88, 0.9), borderWidth: 0.5 });
   let wy = y - 12;

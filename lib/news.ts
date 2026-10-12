@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 
-export type Post = { slug: string; title: string; date: string; body: string };
+export type Post = { slug: string; title: string; date: string; summary: string; body: string };
 
 const DIR = path.join(process.cwd(), "content", "news");
 
@@ -16,7 +16,7 @@ function parse(slug: string, raw: string): Post {
       if (i > 0) meta[line.slice(0, i).trim()] = line.slice(i + 1).trim();
     }
   }
-  return { slug, title: meta.title || slug, date: meta.date || "", body: body.trim() };
+  return { slug, title: meta.title || slug, date: meta.date || "", summary: meta.summary || "", body: body.trim() };
 }
 
 export function allPosts(): Post[] {
