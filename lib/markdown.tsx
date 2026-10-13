@@ -3,12 +3,15 @@ import React from "react";
 /** Минимальный рендер markdown для новостей: ## и ### заголовки, - списки, таблицы, картинки ![alt](/путь), **жирный**, [ссылки](url), абзацы. */
 function inline(text: string, key: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
-  const re = /\*\*(.+?)\*\*|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]+)\)/g;
+  const re = /!\[([^\]]*)\]\((\/[^)\s]+)\)|\*\*(.+?)\*\*|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]+)\)/g;
   let last = 0, i = 0, m: RegExpExecArray | null;
   while ((m = re.exec(text))) {
     if (m.index > last) out.push(text.slice(last, m.index));
-    if (m[1] !== undefined) out.push(<strong key={`${key}-${i++}`}>{m[1]}</strong>);
-    else out.push(<a key={`${key}-${i++}`} href={m[3]}>{m[2]}</a>);
+    if (m[2] !== undefined) {
+      // eslint-disable-next-line @next/next/no-img-element
+      out.push(<img key={`${key}-${i++}`} src={m[2]} alt={m[1]} loading="lazy" style={{ maxWidth: "100%", height: "auto" }} />);
+    } else if (m[3] !== undefined) out.push(<strong key={`${key}-${i++}`}>{m[3]}</strong>);
+    else out.push(<a key={`${key}-${i++}`} href={m[5]}>{m[4]}</a>);
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push(text.slice(last));
