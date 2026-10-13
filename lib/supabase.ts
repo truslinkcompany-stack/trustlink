@@ -5,9 +5,11 @@ let client: SupabaseClient | null = null;
 /** Клиент с service role: использовать только на сервере. */
 export function admin(): SupabaseClient {
   if (!client) {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) throw new Error("Не заданы NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+    const raw = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim().replace(/^["']|["']$/g, "");
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim().replace(/^["']|["']$/g, "");
+    if (!raw || !key) throw new Error("Не заданы NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY");
+    // Берём только адрес проекта: если по ошибке вставили .../rest/v1/, лишнее отбрасываем
+    const url = new URL(raw).origin;
     client = createClient(url, key, { auth: { persistSession: false } });
   }
   return client;
