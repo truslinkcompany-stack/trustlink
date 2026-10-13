@@ -36,8 +36,9 @@ export default async function Result({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="qr" src={qr} alt={fmt(t.qrAlt, { id: rec.cert_no })} />
       <p className="tag">{t.scanHint}</p>
-      <a className="btn" href={`/api/records/${rec.id}/pdf?t=${token}&lang=${lang}`}>{t.download}</a>
-      <a className="btn ghost" href={`/verify/${rec.id}`}>{t.openVerify}</a>
+      <a className="btn" href={`/api/records/${rec.id}/pdf?t=${token}&lang=${lang}`} target="_blank" rel="noopener">{t.download}</a>
+      <p className="tag" style={{ margin: "8px 0 0" }}>{t.pdfHint}</p>
+      <a className="btn ghost" href={`/verify/${rec.id}`} target="_blank" rel="noopener" style={{ marginTop: 14 }}>{t.openVerify}</a>
       <p className="note" style={{ textAlign: "left" }}>{t.saveNote}</p>
       <a href="/">{t.another}</a>
     </div>

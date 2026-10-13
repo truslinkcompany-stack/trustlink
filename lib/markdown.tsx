@@ -1,6 +1,6 @@
 import React from "react";
 
-/** Минимальный рендер markdown для новостей: ## и ### заголовки, - списки, таблицы, **жирный**, [ссылки](url), абзацы. */
+/** Минимальный рендер markdown для новостей: ## и ### заголовки, - списки, таблицы, картинки ![alt](/путь), **жирный**, [ссылки](url), абзацы. */
 function inline(text: string, key: string): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   const re = /\*\*(.+?)\*\*|\[([^\]]+)\]\(((?:https?:\/\/|\/)[^)\s]+)\)/g;
@@ -36,6 +36,11 @@ export function Markdown({ source }: { source: string }) {
               </table>
             </div>
           );
+        }
+        const img = lines.length === 1 && lines[0].match(/^!\[([^\]]*)\]\((\/[^)\s]+)\)$/);
+        if (img) {
+          // eslint-disable-next-line @next/next/no-img-element
+          return <figure key={i}><img src={img[2]} alt={img[1]} loading="lazy" /></figure>;
         }
         if (/^### /.test(lines[0])) return <h3 key={i}>{inline(lines[0].slice(4), `${i}`)}</h3>;
         if (/^## /.test(lines[0])) return <h2 key={i}>{inline(lines[0].slice(3), `${i}`)}</h2>;
