@@ -25,8 +25,7 @@ export function allPosts(): Post[] {
     .readdirSync(DIR)
     .filter((f) => f.endsWith(".md"))
     .map((f) => parse(f.replace(/\.md$/, ""), fs.readFileSync(path.join(DIR, f), "utf8")))
-    .sort((a, b) => b.date.localeCompare(a.date));
-}
+    .sort((a, b) => b.date.localeCompare(a.date) || b.slug.localeCompare(a.slug));}
 
 export function getPost(slug: string): Post | null {
   if (!/^[a-z0-9-]+$/i.test(slug)) return null;
