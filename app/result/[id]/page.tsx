@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { admin, RecordRow, UUID_RE } from "@/lib/supabase";
+import { admin, BUCKET, RecordRow, UUID_RE } from "@/lib/supabase";
 import { checkToken } from "@/lib/token";
 import { siteUrl } from "@/lib/site";
 import { dict, fmt } from "@/lib/dict";
@@ -25,12 +25,20 @@ export default async function Result({
   const { data: rec } = await admin().from("records").select("*").eq("id", id).maybeSingle<RecordRow>();
   if (!rec) notFound();
 
+  // Фото видит только создатель записи (страница защищена токеном): временная ссылка на 10 минут
+  const signed = await admin().storage.from(BUCKET).createSignedUrl(rec.file_path, 600);
+  const photoUrl = signed.data?.signedUrl ?? null;
+
   const verifyUrl = `${siteUrl()}/verify/${rec.id}`;
   const qr = await QRCode.toDataURL(verifyUrl, { margin: 1, width: 440, errorCorrectionLevel: "M" });
 
   return (
     <div className="cert center">
       <h1 style={{ fontSize: 28, marginTop: 0 }}>{t.title}</h1>
+      {photoUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={photoUrl} alt={t.photoAlt} className="cert-photo" />
+      )}
       <div className="tag">{t.certNo}</div>
       <div style={{ fontSize: 28, fontWeight: 700 }}>{rec.cert_no}</div>
       {/* eslint-disable-next-line @next/next/no-img-element */}

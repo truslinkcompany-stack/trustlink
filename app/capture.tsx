@@ -39,6 +39,7 @@ export default function Capture({ t }: { t: T }) {
   const [preview, setPreview] = useState("");
   const [geo, setGeo] = useState<Geo>(null);
   const [geoState, setGeoState] = useState<"wait" | "ok" | "denied">("wait");
+  const [place, setPlace] = useState<string | null | undefined>(undefined); // undefined: ищем, null: не нашли
   const [project, setProject] = useState("");
   const [author, setAuthor] = useState("");
   const [desc, setDesc] = useState("");
@@ -64,6 +65,19 @@ export default function Capture({ t }: { t: T }) {
     v.srcObject = s;
     v.play().catch(() => {});
   }, [step]);
+
+  // Название места по координатам: когда открыта форма, спрашиваем сервер (он обращается к OpenStreetMap)
+  useEffect(() => {
+    if (step !== "form" || !geo) return;
+    let cancelled = false;
+    setPlace(undefined);
+    fetch(`/api/geocode?lat=${geo.lat}&lng=${geo.lng}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setPlace(d.place ?? null); })
+      .catch(() => { if (!cancelled) setPlace(null); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step === "form" && geo ? `${geo.lat},${geo.lng}` : ""]);
 
   function startGeo() {
     stopGeo();
@@ -196,6 +210,9 @@ export default function Capture({ t }: { t: T }) {
             <span className={`dot ${dot}`} />
             {geo ? fmt(t.coords, { lat: geo.lat.toFixed(4), lng: geo.lng.toFixed(4), n: Math.round(geo.accuracy) }) : t.coordsNone}
           </div>
+          {geo && place !== null && (
+            <div className="gps">{place === undefined ? t.placeWait : fmt(t.place, { p: place })}</div>
+          )}
           {low && <p className="note">{fmt(t.lowForm, { n: Math.round(geo!.accuracy), m: GOOD_ACCURACY_M })}</p>}
 
           <p className="tag" style={{ marginTop: 14 }}>{t.optHint}</p>

@@ -1,11 +1,11 @@
 export type Lang = "ru" | "en";
 
+/** Включённые языки. Сейчас только русский (Россия). Позже: добавить "en", "uz" и т.д. */
+export const ENABLED_LANGS: Lang[] = ["ru"];
+
 export function fmt(s: string, v: Record<string, string | number>): string {
   return s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 }
-
-/** Включённые языки. Сейчас только русский (Россия). Позже: добавить "en", "uz" и т.д. */
-export const ENABLED_LANGS: Lang[] = ["ru"];
 
 const ru = {
   meta: { title: "ДоброСлед", description: "Фото с проверяемым временем и местом: сертификат с QR-кодом для отчётов НКО." },
@@ -43,6 +43,8 @@ const ru = {
     retake: "Переснять",
     coords: "Координаты: {lat}, {lng} (±{n} м)",
     coordsNone: "Координаты не получены",
+    place: "Место: {p}",
+    placeWait: "Определяем место…",
     optHint: "Поля ниже необязательны. Что не заполнено, в сертификат не попадёт.",
     fProject: "Проект",
     fProjectHint: "(название и организация)",
@@ -60,8 +62,9 @@ const ru = {
     title: "Сертификат создан",
     certNo: "Номер сертификата",
     qrAlt: "QR-код для проверки сертификата {id}",
+    photoAlt: "Снимок, зарегистрированный в сертификате",
     scanHint: "Отсканируйте код, чтобы открыть страницу проверки",
-    download: "Скачать PDF",
+    download: "Открыть PDF",
     pdfHint: "PDF откроется в новой вкладке, а эта страница останется открытой. Сохраните файл кнопкой загрузки или через меню «Поделиться».",
     openVerify: "Открыть страницу проверки",
     saveNote: "Сохраните PDF сразу: ссылка на скачивание доступна только вам. Страница проверки доступна по QR-коду всем.",
@@ -141,6 +144,8 @@ const en: typeof ru = {
     retake: "Retake",
     coords: "Coordinates: {lat}, {lng} (±{n} m)",
     coordsNone: "Coordinates not received",
+    place: "Place: {p}",
+    placeWait: "Looking up the place…",
     optHint: "The fields below are optional. Anything left empty will not appear in the certificate.",
     fProject: "Project",
     fProjectHint: "(name and organization)",
@@ -158,9 +163,11 @@ const en: typeof ru = {
     title: "Certificate created",
     certNo: "Certificate number",
     qrAlt: "QR code to verify certificate {id}",
+    photoAlt: "The photo registered in the certificate",
     scanHint: "Scan the code to open the verification page",
-    download: "Download PDF",
-    pdfHint: "The PDF opens in a new tab and this page stays open. Save the file with the download button or the Share menu.",    openVerify: "Open verification page",
+    download: "Open PDF",
+    pdfHint: "The PDF opens in a new tab and this page stays open. Save the file with the download button or the Share menu.",
+    openVerify: "Open verification page",
     saveNote: "Save the PDF now: the download link is only available to you. The verification page is open to anyone with the QR code.",
     another: "Take another photo",
   },
