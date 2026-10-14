@@ -3,7 +3,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=14&accept-language=ru&lat=${lat}&lon=${lng}`;
     const res = await fetch(url, {
-      headers: { "User-Agent": "DobroSled-TrustLink/0.1 (trustlinkcompany@gmail.com)" },
+      headers: { "User-Agent": "DobroSled/0.1 (trustlinkcompany@gmail.com)" },
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) return null;

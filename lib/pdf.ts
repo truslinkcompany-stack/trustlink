@@ -130,6 +130,6 @@ export async function buildCertificate(rec: RecordRow, photo: Buffer, verifyUrl:
   for (const l of wl) { page.drawText(l, { x: M + 8, y: wy, size: 7.5, font: regular, color: MUTED }); wy -= 10; }
 
   pdf.setTitle(`ДоброСлед ${rec.cert_no}`);
-  pdf.setProducer("ДоброСлед / TrustLink");
+  pdf.setProducer("ДоброСлед");
   return pdf.save();
 }

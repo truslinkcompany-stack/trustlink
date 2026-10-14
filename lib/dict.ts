@@ -4,6 +4,9 @@ export function fmt(s: string, v: Record<string, string | number>): string {
   return s.replace(/\{(\w+)\}/g, (_, k) => String(v[k] ?? ""));
 }
 
+/** Включённые языки. Сейчас только русский (Россия). Позже: добавить "en", "uz" и т.д. */
+export const ENABLED_LANGS: Lang[] = ["ru"];
+
 const ru = {
   meta: { title: "ДоброСлед", description: "Фото с проверяемым временем и местом: сертификат с QR-кодом для отчётов НКО." },
   nav: { shoot: "Снять фото", about: "О проекте", news: "Новости" },

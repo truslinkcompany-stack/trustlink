@@ -2,11 +2,22 @@ import Capture from "./capture";
 import Partners from "@/components/Partners";
 import { dict } from "@/lib/dict";
 import { getLang } from "@/lib/lang";
+import { siteUrl } from "@/lib/site";
+
+const orgLd = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "ДоброСлед",
+  url: siteUrl(),
+  logo: `${siteUrl()}/brand/dobrosled-logo.png`,
+  description: "Сервис подтверждения фотоотчётов для НКО: время, место и отпечаток файла в сертификате с QR-кодом.",
+};
 
 export default async function Home() {
   const t = dict[await getLang()];
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(orgLd) }} />
       <Partners />
       <section className="hero">
         <div>
